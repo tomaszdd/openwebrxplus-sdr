@@ -1,0 +1,24 @@
+<!doctype html><html><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1"><title>openwebrxplus sat images</title><style>
+body{font-family:system-ui,sans-serif;background:#0e1116;color:#e6e9ef;margin:0;padding:16px;max-width:900px;margin:auto}
+h1{font-size:20px}a{color:#f59e0b}.hint{color:#98a2b3;font-size:12.5px}
+.grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
+.c{background:#171d2b;border:1px solid #28303f;border-radius:10px;padding:8px;width:220px;cursor:pointer}
+.c img{width:100%;border-radius:6px;display:block;background:#000}
+.c .n{font-size:12px;color:#98a2b3;margin-top:6px}.c .d{font-size:11px;color:#5b6472}
+.lb{position:fixed;inset:0;background:#000c;display:none;align-items:center;justify-content:center;z-index:5;padding:20px;cursor:zoom-out}
+.lb.open{display:flex}.lb img{max-width:100%;max-height:100%;border-radius:6px}
+</style></head><body>
+<h1>&#128752; Satellite Images (openwebrxplus)</h1>
+<div class=hint id=st>loading&hellip;</div>
+<div class=grid id=grid></div>
+<div class=lb id=lb onclick="this.classList.remove('open')"><img id=lbimg></div>
+<script>
+fetch('manifest.json').then(r=>r.json()).then(items=>{
+ const st=document.getElementById('st'),grid=document.getElementById('grid');
+ if(!items.length){st.textContent='no images captured yet.';return;}
+ st.textContent=items.length+' image(s) captured';
+ grid.innerHTML=items.map(it=>`<div class=c onclick="openImg('${it.file}')"><img loading=lazy src="${it.file}"><div class=n>${it.satellite}</div><div class=d>${new Date(it.date).toLocaleString()}</div></div>`).join('');
+}).catch(()=>{document.getElementById('st').textContent='no images yet - the Meteor-M2 scheduler fills this in once the SDRPlay dongle is reconnected and the service is enabled.';});
+function openImg(f){document.getElementById('lbimg').src=f;document.getElementById('lb').classList.add('open');}
+</script></body></html>

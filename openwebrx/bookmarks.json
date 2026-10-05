@@ -1,0 +1,172 @@
+[
+  {
+    "name": "POCSAG paging (common UK freq - verify locally)",
+    "frequency": 153025000,
+    "modulation": "page"
+  },
+  {
+    "name": "BBC Radio 5 Live (MW)",
+    "frequency": 909000,
+    "modulation": "am"
+  },
+  {
+    "name": "BBC Radio 2",
+    "frequency": 89100000,
+    "modulation": "wfm"
+  },
+  {
+    "name": "BBC Radio 3",
+    "frequency": 91300000,
+    "modulation": "wfm"
+  },
+  {
+    "name": "BBC Radio 4",
+    "frequency": 93500000,
+    "modulation": "wfm"
+  },
+  {
+    "name": "Capital London",
+    "frequency": 95800000,
+    "modulation": "wfm"
+  },
+  {
+    "name": "LBC",
+    "frequency": 97300000,
+    "modulation": "wfm"
+  },
+  {
+    "name": "BBC Radio 1",
+    "frequency": 98800000,
+    "modulation": "wfm"
+  },
+  {
+    "name": "Classic FM",
+    "frequency": 100900000,
+    "modulation": "wfm"
+  },
+  {
+    "name": "Absolute Radio",
+    "frequency": 105800000,
+    "modulation": "wfm"
+  },
+  {
+    "name": "Heart London",
+    "frequency": 106200000,
+    "modulation": "wfm"
+  },
+  {
+    "name": "Magic FM",
+    "frequency": 105400000,
+    "modulation": "wfm"
+  },
+  {
+    "name": "Radio X",
+    "frequency": 104900000,
+    "modulation": "wfm"
+  },
+  {
+    "name": "Smooth Radio London",
+    "frequency": 102200000,
+    "modulation": "wfm"
+  },
+  {
+    "name": "Gatwick Delivery",
+    "frequency": 121975000,
+    "modulation": "am"
+  },
+  {
+    "name": "Gatwick Ground",
+    "frequency": 121700000,
+    "modulation": "am"
+  },
+  {
+    "name": "Gatwick Tower",
+    "frequency": 124225000,
+    "modulation": "am"
+  },
+  {
+    "name": "Gatwick Approach",
+    "frequency": 126825000,
+    "modulation": "am"
+  },
+  {
+    "name": "Gatwick ATIS",
+    "frequency": 136525000,
+    "modulation": "am"
+  },
+  {
+    "name": "Luton Tower",
+    "frequency": 132550000,
+    "modulation": "am"
+  },
+  {
+    "name": "Luton Approach",
+    "frequency": 129550000,
+    "modulation": "am"
+  },
+  {
+    "name": "Luton ATIS",
+    "frequency": 128750000,
+    "modulation": "am"
+  },
+  {
+    "name": "Stansted Delivery",
+    "frequency": 121925000,
+    "modulation": "am"
+  },
+  {
+    "name": "Stansted Tower",
+    "frequency": 123805000,
+    "modulation": "am"
+  },
+  {
+    "name": "Stansted Approach",
+    "frequency": 120625000,
+    "modulation": "am"
+  },
+  {
+    "name": "Stansted ATIS",
+    "frequency": 127175000,
+    "modulation": "am"
+  },
+  {
+    "name": "London City Tower",
+    "frequency": 118075000,
+    "modulation": "am"
+  },
+  {
+    "name": "London City ATIS",
+    "frequency": 132925000,
+    "modulation": "am"
+  },
+  {
+    "name": "London Control (Area, verify locally - many sectors exist)",
+    "frequency": 127100000,
+    "modulation": "am"
+  },
+  {
+    "name": "DAB 11B - SDL National Mux",
+    "frequency": 222064000,
+    "modulation": "dab"
+  },
+  {
+    "name": "DAB 11D - London 2 Mux",
+    "frequency": 223936000,
+    "modulation": "dab"
+  },
+  {
+    "name": "DAB 12A - Digital One National Mux",
+    "frequency": 225648000,
+    "modulation": "dab"
+  },
+  {
+    "name": "DAB 12B - London 1 Mux",
+    "frequency": 227360000,
+    "modulation": "dab"
+  },
+  {
+    "name": "DAB 9A - CE Digital National Mux",
+    "frequency": 202928000,
+    "modulation": "dab"
+  }
+]

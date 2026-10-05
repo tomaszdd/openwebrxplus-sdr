@@ -1,0 +1,250 @@
+#!/usr/bin/env python3
+"""
+Waits for the next overhead Meteor-M2 pass, briefly stops the native openwebrx
+systemd service (single SDR, can't be shared), captures + decodes the pass
+with satdump directly against the SDRPlay device, restarts openwebrx, and
+files the resulting images for the web gallery.
+"""
+import glob
+import json
+import os
+import shutil
+import subprocess
+import time
+import urllib.request
+from datetime import datetime, timedelta, timezone
+
+from skyfield.api import EarthSatellite, load, wgs84
+
+TLE_FILE = "/var/lib/owrx-sat/meteor-tles.txt"
+LOCATION_CACHE = "/var/lib/owrx-sat/location.json"
+STATUS_FILE = "/var/lib/owrx-sat/next-pass.json"
+OUT_DIR = "/var/www/satimages"
+MANIFEST_FILE = os.path.join(OUT_DIR, "manifest.json")
+WORK_DIR = "/tmp/satdump"
+MIN_ELEVATION_DEG = 20
+SEARCH_HORIZON_HOURS = 30
+POLL_SECONDS = 300
+FREQUENCY_HZ = 137900000
+SAMPLERATE_HZ = 1000000
+SERVICE_SETTLE_SECONDS = 4
+# satdump's Debian package has no native sdrplay source plugin - bridge via
+# SDRplay's own rsp_tcp (rtl_tcp-compatible), which satdump DOES support.
+RSP_TCP_HOST = "127.0.0.1"
+RSP_TCP_PORT = 1234
+RSP_TCP_STARTUP_SECONDS = 3
+
+def log(msg):
+    print("[{}] {}".format(datetime.now(timezone.utc).isoformat(timespec="seconds"), msg), flush=True)
+
+def get_location():
+    try:
+        req = urllib.request.Request(
+            "http://ip-api.com/json?fields=lat,lon",
+            headers={"User-Agent": "Mozilla/5.0 (owrx-satsched)"},
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            d = json.load(resp)
+        lat, lon = d["lat"], d["lon"]
+        os.makedirs(os.path.dirname(LOCATION_CACHE), exist_ok=True)
+        tmp = LOCATION_CACHE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump({"lat": lat, "lon": lon}, f)
+        os.replace(tmp, LOCATION_CACHE)
+        return lat, lon
+    except Exception as e:
+        log("location lookup failed ({}), trying cache".format(e))
+        try:
+            with open(LOCATION_CACHE) as f:
+                d = json.load(f)
+            return d["lat"], d["lon"]
+        except Exception:
+            log("no cached location either - defaulting to London")
+            return 51.5, -0.12
+
+def load_satellites(ts):
+    sats = []
+    try:
+        with open(TLE_FILE) as f:
+            lines = [l.rstrip("\n") for l in f if l.strip()]
+    except Exception:
+        return sats
+    for i in range(0, len(lines) - 2, 3):
+        name, l1, l2 = lines[i], lines[i + 1], lines[i + 2]
+        try:
+            sats.append(EarthSatellite(l1, l2, name, ts))
+        except Exception:
+            continue
+    return sats
+
+def find_next_pass(ts, sats, lat, lon):
+    observer = wgs84.latlon(lat, lon)
+    now = ts.now()
+    end = ts.utc((datetime.now(timezone.utc) + timedelta(hours=SEARCH_HORIZON_HOURS)))
+    best = None
+    for sat in sats:
+        try:
+            times, events = sat.find_events(observer, now, end, altitude_degrees=MIN_ELEVATION_DEG)
+        except Exception:
+            continue
+        aos = los = None
+        for t, e in zip(times, events):
+            if e == 0:
+                aos = t
+            elif e == 2 and aos is not None:
+                los = t
+                if best is None or aos.utc_datetime() < best[1].utc_datetime():
+                    best = (sat, aos, los)
+                aos = None
+    return best
+
+def wait_for(dt):
+    while True:
+        remaining = (dt - datetime.now(timezone.utc)).total_seconds()
+        if remaining <= 0:
+            return
+        time.sleep(min(remaining, POLL_SECONDS))
+
+def svc_is_active(name):
+    r = subprocess.run(["systemctl", "is-active", name], capture_output=True, text=True)
+    return r.stdout.strip() == "active"
+
+def do_capture(sat_name, duration_seconds):
+    safe_name = sat_name.replace(" ", "-").replace("/", "-")
+    stamp = datetime.now(timezone.utc).strftime("%y%m%d-%H%M%S")
+    outfolder = os.path.join(WORK_DIR, "{}-{}".format(safe_name, stamp))
+    os.makedirs(outfolder, exist_ok=True)
+
+    log("pass starting: {} for {:.0f}s -> {}".format(sat_name, duration_seconds, outfolder))
+    was_openwebrx = svc_is_active("openwebrx")
+    was_sdrconnect = svc_is_active("sdrconnectserver")
+    if was_openwebrx:
+        subprocess.run(["systemctl", "stop", "openwebrx"], capture_output=True)
+    if was_sdrconnect:
+        subprocess.run(["systemctl", "stop", "sdrconnectserver"], capture_output=True)
+    if was_openwebrx or was_sdrconnect:
+        time.sleep(SERVICE_SETTLE_SECONDS)
+
+    rsp_proc = None
+    try:
+        rsp_proc = subprocess.Popen(
+            ["rsp_tcp", "-a", RSP_TCP_HOST, "-p", str(RSP_TCP_PORT),
+             "-f", str(FREQUENCY_HZ), "-s", str(SAMPLERATE_HZ)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        time.sleep(RSP_TCP_STARTUP_SECONDS)
+        if rsp_proc.poll() is not None:
+            log("rsp_tcp exited immediately (code {}), skipping this pass".format(rsp_proc.returncode))
+        else:
+            result = subprocess.run(
+                [
+                    "satdump", "live", "meteor_m2-x_lrpt", outfolder,
+                    "--source", "rtltcp",
+                    "--host", RSP_TCP_HOST,
+                    "--port", str(RSP_TCP_PORT),
+                    "--samplerate", str(SAMPLERATE_HZ),
+                    "--frequency", str(FREQUENCY_HZ),
+                    "--finish_processing",
+                    "--timeout", str(int(duration_seconds)),
+                ],
+                timeout=duration_seconds + 90,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                log("satdump exited {}: {}".format(result.returncode, (result.stderr or result.stdout)[-500:]))
+    except Exception as e:
+        log("capture error: {}".format(e))
+    finally:
+        if rsp_proc is not None and rsp_proc.poll() is None:
+            rsp_proc.terminate()
+            try:
+                rsp_proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                rsp_proc.kill()
+        if was_sdrconnect:
+            subprocess.run(["systemctl", "start", "sdrconnectserver"], capture_output=True)
+        if was_openwebrx:
+            subprocess.run(["systemctl", "start", "openwebrx"], capture_output=True)
+
+    os.makedirs(OUT_DIR, exist_ok=True)
+    try:
+        with open(MANIFEST_FILE) as f:
+            manifest = json.load(f)
+    except Exception:
+        manifest = []
+    copied = 0
+    for png in sorted(glob.glob(os.path.join(outfolder, "**", "*.png"), recursive=True)):
+        fname = "{}_{}_{}".format(safe_name, stamp, os.path.basename(png))
+        dest = os.path.join(OUT_DIR, fname)
+        try:
+            shutil.copy(png, dest)
+            manifest.append({
+                "file": fname,
+                "satellite": sat_name,
+                "date": datetime.now(timezone.utc).isoformat(),
+            })
+            copied += 1
+        except Exception:
+            pass
+    manifest.sort(key=lambda a: a["date"], reverse=True)
+    tmp = MANIFEST_FILE + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(manifest, f)
+    os.replace(tmp, MANIFEST_FILE)
+    log("pass finished: {} image(s) collected".format(copied))
+
+def write_status(status):
+    os.makedirs(os.path.dirname(STATUS_FILE), exist_ok=True)
+    tmp = STATUS_FILE + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(status, f)
+    os.replace(tmp, STATUS_FILE)
+
+def main():
+    ts = load.timescale()
+    last_tle_refresh = 0
+    while True:
+        if time.time() - last_tle_refresh > 12 * 3600:
+            subprocess.run(["/usr/local/bin/owrx-tle-update"], capture_output=True)
+            last_tle_refresh = time.time()
+
+        sats = load_satellites(ts)
+        if not sats:
+            log("no TLE data available yet, retrying in {}s".format(POLL_SECONDS))
+            write_status({"state": "no_tle", "checked": datetime.now(timezone.utc).isoformat()})
+            time.sleep(POLL_SECONDS)
+            continue
+
+        lat, lon = get_location()
+        nxt = find_next_pass(ts, sats, lat, lon)
+        if nxt is None:
+            log("no pass >= {} deg elevation in next {}h, rechecking in {}s".format(
+                MIN_ELEVATION_DEG, SEARCH_HORIZON_HOURS, POLL_SECONDS))
+            write_status({"state": "no_pass", "checked": datetime.now(timezone.utc).isoformat()})
+            time.sleep(POLL_SECONDS)
+            continue
+
+        sat, aos, los = nxt
+        aos_dt = aos.utc_datetime()
+        los_dt = los.utc_datetime()
+        log("next pass: {} AOS {} LOS {}".format(sat.name, aos_dt.isoformat(), los_dt.isoformat()))
+        write_status({
+            "state": "scheduled",
+            "satellite": sat.name,
+            "aos": aos_dt.isoformat(),
+            "los": los_dt.isoformat(),
+            "checked": datetime.now(timezone.utc).isoformat(),
+        })
+        wait_for(aos_dt - timedelta(seconds=20))
+        write_status({
+            "state": "capturing",
+            "satellite": sat.name,
+            "aos": aos_dt.isoformat(),
+            "los": los_dt.isoformat(),
+            "checked": datetime.now(timezone.utc).isoformat(),
+        })
+        do_capture(sat.name, (los_dt - aos_dt).total_seconds())
+
+if __name__ == "__main__":
+    main()

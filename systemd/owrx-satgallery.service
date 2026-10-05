@@ -1,0 +1,9 @@
+[Unit]
+Description=weather satellite image gallery
+After=network.target
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/satgallery-server.py
+Restart=always
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=openwebrxplus SDR control panel
+After=network.target
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/owrx-panel.py
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target

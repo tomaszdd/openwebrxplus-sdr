@@ -1,0 +1,10 @@
+[Unit]
+Description=SDRconnect Server Service
+After=network.target
+
+[Service]
+ExecStart=/opt/sdrconnect/SDRconnect --server
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
