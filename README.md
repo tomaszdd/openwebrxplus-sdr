@@ -1,5 +1,7 @@
 # openwebrxplus-sdr
 
+![SDR control panel](docs/screenshot.png)
+
 Scripts and systemd units for `openwebrxplus` — a Pi 4B running OpenWebRX+
 natively (systemd, not Docker) with an SDRPlay RSP1B. This is a companion setup to
 [prepperpi](https://github.com/tomaszdd/prepperpi), which has its own separate RTL-SDR-based
